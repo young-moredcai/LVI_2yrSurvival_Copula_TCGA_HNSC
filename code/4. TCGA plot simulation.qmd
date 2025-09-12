@@ -1,0 +1,703 @@
+---
+title: "TCGA PLOT SIMULATION"
+format: html
+editor: visual
+---
+
+## \~\~\~ plot generating
+
+### new plot 00
+
+```{r}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+result_200_all_10000_00 <- as.data.frame(result00)
+
+# Prepare dataset for censoring rate 0.1%
+data_censoring0 <- result_200_all_10000_00 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+# Reshape main estimates to long format and rename methods
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+# Reshape confidence intervals to long format
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+# Merge estimates and confidence intervals by pb and method
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  # Merge text labels and other info (assuming each pb has a unique label)
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+# To avoid duplicated text labels, keep only one row per pb
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+# Recommended color-blind-friendly palette for contrast
+# Blue: #0072B2; Orange: #D55E00
+plot_sp1 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                     linetype = method, shape = method)) +
+  # Add confidence interval ribbon
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+  # Add lines and points
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  # Optional: add text labels (can replace with geom_text_repel() if needed)
+  # geom_text(data = unique_labels, aes(label = text_label),
+  #           color = "black", nudge_y = -0.1, hjust = 0, vjust = 1.2,
+  #           size = 2.3, check_overlap = TRUE) +
+  # Chart title and axis labels
+  labs(title = "0.1% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  # Clean theme with sans font
+  theme_minimal(base_family = "sans", base_size = 12) +
+  # Customize x-axis ticks
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+  # Fix plot limits
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  # Theme tweaks
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),
+        panel.grid.minor = element_blank(),
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+  # Apply custom color/fill scheme
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+# Display plot
+print(plot_sp1)
+
+
+```
+
+### new plot 10
+
+```{r}
+# Load required packages
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+
+# Assume summary_results41 dataset has already been loaded
+data_censoring0 <- summary_results41 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+# Convert main estimates to long format and rename methods
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+# Convert confidence intervals to long format
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+# Merge estimates and CIs by pb and method
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  # Merge text labels and additional info (assumes each pb has unique text_label)
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+# Retain only one label per pb to avoid duplicate text labels
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp2 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                     linetype = method, shape = method)) +
+  # Add confidence interval ribbons
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+  # Add lines and points
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+
+  labs(title = "10% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  # Clean theme using sans-serif font
+  theme_minimal(base_family = "sans", base_size = 12) +
+  # Custom x-axis breaks
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+  # Fixed plot limits
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  # Custom theme details
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),
+        panel.grid.minor = element_blank(),
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+  # Apply custom fill and line/point colors
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+# Show plot
+print(plot_sp2)
+
+
+```
+
+### new plot 20
+
+```{r}
+# Load required packages
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+
+# Assume summary_results42 dataset has already been loaded
+data_censoring0 <- summary_results42 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+# Convert main estimates to long format and rename methods
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+# Convert confidence intervals to long format
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+# Merge estimates and confidence intervals by pb and method
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  # Merge text labels and other info (assumes each pb has unique text_label)
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+# Retain only one label per pb to avoid duplicate text
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp3 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                     linetype = method, shape = method)) +
+  # Add confidence interval ribbons
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+  # Add lines and points
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+
+  labs(title = "20% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  # Clean minimal theme using sans-serif font
+  theme_minimal(base_family = "sans", base_size = 12) +
+  # Custom x-axis breaks
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+  # Set fixed axis limits
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  # Custom theme tweaks
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),  # Light major grid
+        panel.grid.minor = element_blank(),                 # Remove minor grid
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+  # Apply custom fill and color scheme
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+# Show plot
+print(plot_sp3)
+
+```
+
+### new plot 30
+
+```{r}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+
+data_censoring0 <- summary_results43 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+#
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp4 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                       linetype = method, shape = method)) +
+
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+  # 
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+ 
+  labs(title = "30% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  
+  theme_minimal(base_family = "sans", base_size = 12) +
+
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+  #
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  # 
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),  # 
+        panel.grid.minor = element_blank(),                 # 
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+ 
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+
+print(plot_sp4)
+
+```
+
+### new plot 40
+
+```{r}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+data_censoring0 <- summary_results44 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+#
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+# 
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  # 
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+# 
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp5 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                       linetype = method, shape = method)) +
+
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+  
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  
+  labs(title = "40% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  
+  theme_minimal(base_family = "sans", base_size = 12) +
+  
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+ 
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),  # 
+        panel.grid.minor = element_blank(),                 # 
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+
+print(plot_sp5)
+
+```
+
+### new plot 50
+
+```{r}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+data_censoring0 <- summary_results45 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+  
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp6 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                       linetype = method, shape = method)) +
+
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+
+  labs(title = "50% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  # 
+  theme_minimal(base_family = "sans", base_size = 12) +
+ 
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),  # 
+        panel.grid.minor = element_blank(),                 # 
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+
+print(plot_sp6)
+
+```
+
+### new plot 60
+
+```{r}
+
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+data_censoring0 <- summary_results46 %>%
+  mutate(set = "censoring rate 0.1%",
+         text_label = paste0("0: ", round(average_results.0_y2, 1),
+                             "\n1: ", round(average_results.1_y2, 1),
+                             "\nNA: ", round(average_results.na_y2, 1)))
+
+
+estimates_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.AT, average_results.AAT),
+    names_to = "method",
+    values_to = "estimate",
+    names_prefix = "average_results."
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"))
+
+
+ci_long <- data_censoring0 %>%
+  pivot_longer(
+    cols = c(average_results.low_AT_ci, average_results.up_AT_ci,
+             average_results.low_AAT_ci, average_results.up_AAT_ci),
+    names_to = c("ci_bound", "method"),
+    names_pattern = "average_results\\.(low|up)_(AT|AAT)_ci",
+    values_to = "ci_value"
+  ) %>%
+  mutate(method = recode(method,
+                         "AT" = "GJRM",
+                         "AAT" = "TRUE"),
+         ci_bound = recode(ci_bound,
+                           "low" = "lower",
+                           "up" = "upper")) %>%
+  pivot_wider(names_from = ci_bound, values_from = ci_value)
+
+
+estimates_df <- estimates_long %>%
+  left_join(ci_long, by = c("pb", "method")) %>%
+ 
+  left_join(data_censoring0 %>% select(pb, set, text_label), by = "pb")
+
+
+unique_labels <- estimates_df %>%
+  distinct(pb, .keep_all = TRUE)
+
+
+plot_sp7 <- ggplot(estimates_df, aes(x = pb, y = estimate, color = method,
+                                       linetype = method, shape = method)) +
+ 
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = method), 
+              alpha = 0.2, color = NA, show.legend = FALSE) +
+
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+
+  labs(title = "60% Censoring Rate",
+       x = "Survival Time Quantile",
+       y = "Average Treatment") +
+  # 
+  theme_minimal(base_family = "sans", base_size = 12) +
+  # 
+  scale_x_continuous(breaks = seq(0, 1, by = 0.2)) +
+  # 
+  coord_cartesian(xlim = c(0, 1), ylim = c(-0.7, 0)) +
+  # 
+  theme(axis.line = element_line(color = "black"),
+        panel.grid.major = element_line(color = "grey80"),  # 
+        panel.grid.minor = element_blank(),                 # 
+        plot.margin = unit(c(1, 1, 1, 1), "cm"),
+        plot.title = element_text(hjust = 0.5, face = "italic", size = 12),
+        axis.text.x = element_text(size = 10),
+        axis.text.y = element_text(size = 10),
+        axis.title.x = element_text(size = 10, face = "plain"),
+        axis.title.y = element_text(size = 10, face = "plain"),
+        legend.position = "bottom",
+        legend.title = element_blank()) +
+ 
+  scale_fill_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00")) +
+  scale_color_manual(values = c("GJRM" = "#0072B2", "TRUE" = "#D55E00"))
+
+
+print(plot_sp7)
+
+```
+
+### ---Merge plots
+
+```{r}
+library(patchwork)
+
+
+final_plot <- ((plot_sp1 + plot_sp2 + plot_sp3) / 
+               (plot_sp4 + plot_sp5 + plot_sp6) / 
+               (plot_sp7 + plot_spacer() + plot_spacer())) +  
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom", 
+        plot.margin = margin(5, 5, 5, 5))  # 
+
+
+final_plot <- final_plot + 
+  plot_annotation(
+    title = "ATE Estimation Across Censoring Rates: GJRM (n = 200) vs. TRUE",
+    tag_levels = 'A',  # 
+    theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+  )  
+
+
+
+
+
+ggsave("output.png", plot = final_plot, width = 12, height = 9, dpi = 1000)
+
+
+```

@@ -1,0 +1,1540 @@
+---
+title: "3. GJRM"
+author: 'Y'
+date: "2024-11-21"
+output: html_document
+---
+
+## Create data set for GJRM
+```{r}
+library(dplyr)
+library(survival)
+
+miRNADataset <- read.csv("df_miRNA.csv")
+df_survival <- read.csv("SurvivalDataset.csv")
+df_clincial <- read.csv("ClinicalDataset.csv")
+
+
+##create new data set, the gene variables which selected by screening methods 
+df_surv <- df_survival[, c("sample", "OS", "OS.time")]
+##Transferring unit, from day to months
+df_surv[,3]=floor(df_surv[,3]/30)#months
+
+
+hist(df_surv$OS.time, breaks=50, 
+     main="Histogram of Survival Time", 
+     xlab="Time in Months", ylab="Patient Counts",
+     col="lightblue")  
+abline(v = seq(0, max(df_surv$OS.time, na.rm = TRUE), by = 6), col="gray", lty="dotted")
+abline(h = seq(0, max(hist(df_surv$OS.time, plot=FALSE)$counts), by=1), col="gray", lty="dotted")
+
+
+
+
+
+
+
+##selected miRNA variables  
+miRNA_selected<-miRNADataset[,c("sample",
+                      ## miRNA ~ Lvi selected by SIS 
+                      "MIMAT0000253", #RF
+                      "MIMAT0000087",
+                      "MIMAT0000264", #RF
+                      "MIMAT0004598",
+                      ## miRNA ~ Lvi
+                      "MIMAT0004550", #rf 
+                      "MIMAT0000082",
+                      "MIMAT0000088",
+                      "MIMAT0000693",
+                      "MIMAT0003249",
+                      "MIMAT0000441",
+                      "MIMAT0000099",
+                      "MIMAT0000086",
+                      # hsa-miR194-5p (from paper)
+                      "MIMAT0000460", 
+                      ## miRNA ~ with survival selected by screen method
+                      "MIMAT0000434",
+                      "MIMAT0000754",
+                      "MIMAT0004692",
+                      "MIMAT0000444",
+                      "MIMAT0004601",
+                      "MIMAT0004556",
+                      "MIMAT0000097",
+                      "MIMAT0004766",
+                      "MIMAT0005951",
+                      "MIMAT0004701",
+                      "MIMAT0000758"
+                       
+               )] 
+
+
+
+
+
+
+
+##clinical variable
+df_c <- df_clincial[,c("sampleID",
+                        "lymphovascular_invasion_present",##dependent variable
+                        "age_at_initial_pathologic_diagnosis",
+                        "gender",
+                        "margin_status",
+                        "tobacco_smoking_history",
+                        "alcohol_history_documented",
+                        "perineural_invasion_present",
+                        "clinical_T",
+                        "clinical_N",
+                        "clinical_stage",
+                        "neoplasm_histologic_grade"
+                        )]
+
+
+
+
+# Rename the column
+df_c <- df_c %>% rename(sample = sampleID)
+
+
+
+merged_df <- merge(df_c, miRNA_selected, by = "sample")
+final_merged_df <- merge(df_surv, merged_df, by = "sample")
+
+
+write.csv(final_merged_df, "final_merged_df.csv")
+##clear environment for saving space
+rm(list=ls())
+```
+## assigned the value to sub-level
+
+```{r, echo=FALSE,warning=FALSE}
+library(dplyr)
+
+
+
+df3<-read.csv("final_merged_df.csv")
+
+df3$lymphovascular_invasion_present <- ifelse(
+  df3$lymphovascular_invasion_present == "YES", 1, 0)
+
+df3$perineural_invasion_present <- ifelse(
+  df3$perineural_invasion_present == "YES", 1, 0)
+
+
+
+df3 <- df3 %>%
+  mutate(margin_status = dplyr::recode(margin_status,
+                                       "Positive" = 1,
+                                       "Negative" = 2,
+                                       "Close" = 3))
+
+
+
+df3$gender <- ifelse(df3$gender == "MALE", 1, 0) 
+
+
+df3$alcohol_history_documented <- ifelse(  #drink or not 
+  df3$alcohol_history_documented == "YES", 1, 0
+  )
+
+
+## for clinical_T (tumor size) plan to have two groups 
+df3 <- df3 %>%
+  mutate(clinical_T = dplyr::recode(clinical_T,
+                                   "T1" = 1,#tumor < 1.0 mm
+                                   "T2" = 1,#>1.0 tumor 2.0 mm
+                                   "T3" = 2,#>2.0 tumor 4.0 mm
+                                   "T4" = 2,#>4.0 mm tumor size
+                                   "T4a" = 2,
+                                   "T4b" = 2,
+                                   "TX" = 2))
+
+                                   
+                                   
+df3 <- df3 %>%
+  mutate(clinical_N =dplyr::recode(clinical_N,
+                                   "N0" = 0,#Regional lymph node involvement or not
+                                   "N1" = 1,
+                                   "N2" = 1,
+                                   "N2a" = 1,
+                                   "N2b" = 1,
+                                   "N2c" = 1,
+                                   "N3" = 1,
+                                    "NX" = 1))
+
+
+            
+df3 <- df3 %>%
+  mutate(clinical_stage =dplyr:: recode(clinical_stage,
+                                   "Stage I" = 1,
+                                   "Stage II" = 1,
+                                   "Stage III" = 1,
+                                   "Stage IVA" = 2,
+                                   "Stage IVB" = 2,
+                                   "Stage IVC" = 2
+                                   ))
+
+
+
+df3 <- df3 %>%
+  mutate(neoplasm_histologic_grade = dplyr::recode(neoplasm_histologic_grade,
+                                   "G1" = 1,
+                                   "G2" = 2,
+                                   "G3" = 3,
+                                   "G4" = 3,
+                                   "GX" = 1#leave this alone
+                                   ))
+
+
+df3 <- df3 %>%
+  mutate(tobacco_smoking_history = dplyr::recode(tobacco_smoking_history,
+                                   "1" = 1,#Lifelong Non-smoker (lessthan 100 cigarettes smoked)
+                                   "2" = 2, #Current smoker
+                                   "3" = 3, #Current reformed smoker for > 15 years
+                                   "4" = 3, #Current reformed smoker 
+                                   "5" = 3#Current reformed smoker, duration not specified
+                                   ))
+
+
+##Set up Categorical Data
+df3$clinical_T <- as.factor(df3$clinical_T)
+df3$clinical_N <- as.factor(df3$clinical_N)
+df3$clinical_stage<- as.factor(df3$clinical_stage)
+df3$neoplasm_histologic_grade <- as.factor(df3$neoplasm_histologic_grade)
+df3$lymphovascular_invasion_present <- as.factor(
+  df3$lymphovascular_invasion_present)
+df3$gender <- as.factor(df3$gender)
+df3$alcohol_history_documented <- as.factor(
+  df3$alcohol_history_documented 
+  )
+df3$margin_status<-as.factor(df3$margin_status)
+df3$tobacco_smoking_history <-as.factor(df3$tobacco_smoking_history )
+
+df3$perineural_invasion_present<-as.factor(df3$perineural_invasion_present)
+
+
+
+
+
+  
+  
+summary(df3)
+
+
+
+
+### Looking for the median survival time 
+# Create a survival object
+surv_obj <- Surv(df3$OS.time, df3$OS)
+
+# Fit a survival curve
+fit <- survfit(surv_obj ~ 1)
+
+# Summary of the survival fit
+summary_fit <- summary(fit)
+
+# Calculate quantiles from the survfit object
+quantile_fit <- quantile(fit)
+
+# The median survival time is the 50th percentile
+median_survival_time <- quantile_fit$quantile[2]
+print(median_survival_time)
+
+
+# Plot the survival curve
+plot(fit, xlab = "Time", ylab = "Survival Probability", main = "Survival Curve")
+
+df3$lymphovascular_invasion_present
+df4$Surv.2_NA
+df4<-df3
+
+# remove na value
+df4<- df4[!is.na(df4$OS.time), ]
+
+
+#
+subset_data <- df4[df4$lymphovascular_invasion_present == "1", ]
+
+# 
+table(subset_data$Surv.2_NA)
+prop.table(table(subset_data$Surv.2_NA))
+```
+
+## GJRM
+
+### 1 years
+```{r}
+# 2 years survival
+set.seed(1207)
+library(GJRM)
+
+
+# Calculate the right censoring ratio for two years
+time_cutoff <- 12*1 # 2 years in months
+
+df4$Surv.1_NA <- NA
+
+
+#OS 1: DEAD and 0:ALIVE
+df4$Surv.1_NA[df4$OS == 0 & df4$OS.time >= time_cutoff] <- 1#right censoring data
+df4$Surv.1_NA[df4$OS == 0 & df4$OS.time < time_cutoff] <- NA
+
+df4$Surv.1_NA[df4$OS == 1 & df4$OS.time > time_cutoff] <- 1
+df4$Surv.1_NA[df4$OS == 1 & df4$OS.time <= time_cutoff] <- 0
+
+
+
+
+treat.eq <-  as.factor(lymphovascular_invasion_present)~# equ 1
+  s(MIMAT0000264)+  #LVI small/RF
+ # s(MIMAT0000253) +#LVI small/RF
+  s(MIMAT0000460)+#LVI
+  s(age_at_initial_pathologic_diagnosis)+
+  as.factor(clinical_N)+
+  as.factor(margin_status)+
+  as.factor(perineural_invasion_present)
+ 
+
+
+
+out.eq <- Surv.1_NA ~ as.factor(lymphovascular_invasion_present)+ # equ2
+  s(MIMAT0000754)+
+  s(MIMAT0004601)+
+  s(MIMAT0000097)+  #LVI small/RF
+  s(MIMAT0004766)+  #LVI
+  s(age_at_initial_pathologic_diagnosis)
+
+ 
+
+ 
+
+copula_types <- c("N","F", "PL", "AMH", "FGM", "T", "HO", "C0", "C90", "C180", "C270",
+                  "GAL0", "GAL90", "GAL180", "GAL270", "J0", "J90", "J180", "J270", 
+                  "G0", "G90", "G180", "G270") # Include more copula types as needed 
+ 
+mr <- c("probit", "logit", "cloglog")
+
+f.list <- list(treat.eq, out.eq)
+
+
+# Initialize an empty list for storing model results
+models2 <- list()
+# Initialize vectors to store results
+converage <- at_value <- AIC_values <- BIC_values <- tau_values <- c()
+
+# Loop through copula types and margins
+for (copula_type in copula_types) {
+  for (i in 1:length(mr)) {
+    for (j in 1:length(mr)) {
+      
+      marg <- c(mr[i], mr[j])
+      
+      model_name <- paste0("TCGA-", substr(marg[1], 1, 1), substr(marg[2], 1, 1), copula_type)
+      
+      # Run the model with tryCatch to handle errors
+      tryCatch({
+        models2[[model_name]] <- gjrm(f.list, data = df4, margins = marg, copula = copula_type, model = "B")
+        
+        # Convergence check
+        conv_output <- capture.output(conv.check(models2[[model_name]]))
+        if (grepl("Observed information matrix is positive definite", conv_output[3])) {
+          converage <- c(converage, "Yes")
+        } else {
+          converage <- c(converage, "No")  # Keep results but mark as non-converging
+        }
+        
+        # Compute AT results
+        at_result <- ATE(models2[[model_name]], "lymphovascular_invasion_present", n.sim = 2000)
+        formatted_result <- sprintf("%0.3f (%0.3f, %0.3f)", at_result$res[2], at_result$res[1], at_result$res[3])
+        at_value <- c(at_value, formatted_result)
+        
+        # Collect AIC, BIC, and tau values
+        AIC_values <- c(AIC_values, AIC(models2[[model_name]]))
+        BIC_values <- c(BIC_values, BIC(models2[[model_name]]))
+        
+       kkk <- k.tau(models2[[model_name]])   
+      tau_parts <- as.numeric(kkk)
+      tauv <- tau_parts[1]
+      low_tau <- tau_parts[2]
+      up_tau <- tau_parts[3]
+        tau_values <- c(tau_values, sprintf("%0.3f (%0.3f, %0.3f)", tauv, low_tau,  up_tau))
+        
+        
+
+      
+  
+      
+        
+      }, error = function(e) {
+        # Handle errors
+        warning("Error occurred in model: ", model_name, " - ", e$message)
+        converage <- c(converage, "Error")
+        at_value <- c(at_value, NA)
+        AIC_values <- c(AIC_values, NA)
+        BIC_values <- c(BIC_values, NA)
+        tau_values <- c(tau_values, NA)
+      })
+    }
+  }
+}
+#result_df I did not delete some variable. let's try remove some non-impotant variable from model 
+#results_df1 remove age from eq2 ; margin status from eq2
+#results_df2 remove clinical_T from eq2 ; margin status from eq2
+
+# Summarize results
+results_df1 <- data.frame(
+  Model = names(models2),
+  Convergence = converage,
+  AT_Value = at_value,
+  AIC = AIC_values,
+  BIC = BIC_values,
+  Tau = tau_values
+)
+
+# Print the results for inspection
+print(results_df1)
+
+
+
+
+
+
+```
+
+### ------------2 years
+```{r}
+# 2 years survival
+#set.seed(1207)
+library(GJRM)
+
+
+# Calculate the right censoring ratio for two years
+time_cutoff <- 12*2 # 2 years in months
+
+df4$Surv.2_NA <- NA
+
+
+#OS 1: DEAD and 0:ALIVE
+df4$Surv.2_NA[df4$OS == 0 & df4$OS.time >= time_cutoff] <- 1#right censoring data
+df4$Surv.2_NA[df4$OS == 0 & df4$OS.time < time_cutoff] <- NA
+
+df4$Surv.2_NA[df4$OS == 1 & df4$OS.time > time_cutoff] <- 1
+df4$Surv.2_NA[df4$OS == 1 & df4$OS.time <= time_cutoff] <- 0
+
+
+
+treat.eq <-  as.factor(lymphovascular_invasion_present)~# equ 1
+  s(MIMAT0000264)+  #LVI small/RF
+ # s(MIMAT0000253) +#LVI small/RF
+  s(MIMAT0000460)+#LVI
+  s(age_at_initial_pathologic_diagnosis)+
+  as.factor(clinical_N)+
+  as.factor(margin_status)+
+  as.factor(perineural_invasion_present)
+ 
+
+
+
+out.eq <- Surv.2_NA ~ as.factor(lymphovascular_invasion_present)+ # equ2
+  s(MIMAT0000754)+
+  s(MIMAT0004601)+
+  s(MIMAT0000097)+  #LVI small/RF
+  s(MIMAT0004766)+  #LVI
+  s(age_at_initial_pathologic_diagnosis)
+
+ 
+
+ 
+
+copula_types <- c("N","F", "PL", "AMH", "FGM", "T", "HO", "C0", "C90", "C180", "C270",
+                  "GAL0", "GAL90", "GAL180", "GAL270", "J0", "J90", "J180", "J270", 
+                  "G0", "G90", "G180", "G270") # Include more copula types as needed 
+ 
+mr <- c("probit", "logit", "cloglog")
+
+f.list <- list(treat.eq, out.eq)
+
+
+# Initialize an empty list for storing model results
+models2 <- list()
+# Initialize vectors to store results
+converage <- at_value <- AIC_values <- BIC_values <- tau_values <- c()
+
+# Loop through copula types and margins
+for (copula_type in copula_types) {
+  for (i in 1:length(mr)) {
+    for (j in 1:length(mr)) {
+      
+      marg <- c(mr[i], mr[j])
+      
+      model_name <- paste0("TCGA-", substr(marg[1], 1, 1), substr(marg[2], 1, 1), copula_type)
+      
+      # Run the model with tryCatch to handle errors
+      tryCatch({
+        models2[[model_name]] <- gjrm(f.list, data = df4, margins = marg, copula = copula_type, model = "B")
+        
+        # Convergence check
+        conv_output <- capture.output(conv.check(models2[[model_name]]))
+        if (grepl("Observed information matrix is positive definite", conv_output[3])) {
+          converage <- c(converage, "Yes")
+        } else {
+          converage <- c(converage, "No")  # Keep results but mark as non-converging
+        }
+        
+        # Compute AT results
+        at_result <- ATE(models2[[model_name]], "lymphovascular_invasion_present", n.sim = 2000)
+        formatted_result <- sprintf("%0.3f (%0.3f, %0.3f)", at_result$res[2], at_result$res[1], at_result$res[3])
+        at_value <- c(at_value, formatted_result)
+        
+        # Collect AIC, BIC, and tau values
+        AIC_values <- c(AIC_values, AIC(models2[[model_name]]))
+        BIC_values <- c(BIC_values, BIC(models2[[model_name]]))
+        
+       kkk <- k.tau(models2[[model_name]])   
+      tau_parts <- as.numeric(kkk)
+      tauv <- tau_parts[1]
+      low_tau <- tau_parts[2]
+      up_tau <- tau_parts[3]
+        tau_values <- c(tau_values, sprintf("%0.3f (%0.3f, %0.3f)", tauv, low_tau,  up_tau))
+        
+        
+
+      
+  
+      
+        
+      }, error = function(e) {
+        # Handle errors
+        warning("Error occurred in model: ", model_name, " - ", e$message)
+        converage <- c(converage, "Error")
+        at_value <- c(at_value, NA)
+        AIC_values <- c(AIC_values, NA)
+        BIC_values <- c(BIC_values, NA)
+        tau_values <- c(tau_values, NA)
+      })
+    }
+  }
+}
+
+# Summarize results
+results_df2 <- data.frame(
+  Model = names(models2),
+  Convergence = converage,
+  AT_Value = at_value,
+  AIC = AIC_values,
+  BIC = BIC_values,
+  Tau = tau_values
+)
+
+# Print the results for inspection
+print(results_df2)
+
+
+
+
+
+
+```
+
+
+
+
+### 3 years
+```{r}
+# 2 years survival
+set.seed(1207)
+library(GJRM)
+
+
+# Calculate the right censoring ratio for two years
+time_cutoff <- 12*3 # 1 years in months
+
+df4$Surv.3_NA <- NA
+
+#OS 1: DEAD and 0:ALIVE
+df4$Surv.3_NA[df4$OS == 0 & df4$OS.time >= time_cutoff] <- 1#right censoring data
+df4$Surv.3_NA[df4$OS == 0 & df4$OS.time < time_cutoff] <- NA
+
+df4$Surv.3_NA[df4$OS == 1 & df4$OS.time > time_cutoff] <- 1
+df4$Surv.3_NA[df4$OS == 1 & df4$OS.time <= time_cutoff] <- 0
+
+
+
+treat.eq <-  as.factor(lymphovascular_invasion_present)~# equ 1
+  s(MIMAT0000264)+  #LVI small/RF
+ # s(MIMAT0000253) +#LVI small/RF
+  s(MIMAT0000460)+#LVI
+  s(age_at_initial_pathologic_diagnosis)+
+  as.factor(clinical_N)+
+  as.factor(margin_status)+
+  as.factor(perineural_invasion_present)
+ 
+
+
+
+out.eq <- Surv.3_NA ~ as.factor(lymphovascular_invasion_present)+ # equ2
+  s(MIMAT0000754)+
+  s(MIMAT0004601)+
+  s(MIMAT0000097)+  #LVI small/RF
+  s(MIMAT0004766)+  #LVI
+  s(age_at_initial_pathologic_diagnosis)
+
+ 
+
+ 
+
+copula_types <- c("N","F", "PL", "AMH", "FGM", "T", "HO", "C0", "C90", "C180", "C270",
+                  "GAL0", "GAL90", "GAL180", "GAL270", "J0", "J90", "J180", "J270", 
+                  "G0", "G90", "G180", "G270") # Include more copula types as needed 
+ 
+mr <- c("probit", "logit", "cloglog")
+
+f.list <- list(treat.eq, out.eq)
+
+
+# Initialize an empty list for storing model results
+models2 <- list()
+# Initialize vectors to store results
+converage <- at_value <- AIC_values <- BIC_values <- tau_values <- c()
+
+# Loop through copula types and margins
+for (copula_type in copula_types) {
+  for (i in 1:length(mr)) {
+    for (j in 1:length(mr)) {
+      
+      marg <- c(mr[i], mr[j])
+      
+      model_name <- paste0("TCGA-", substr(marg[1], 1, 1), substr(marg[2], 1, 1), copula_type)
+      
+      # Run the model with tryCatch to handle errors
+      tryCatch({
+        models2[[model_name]] <- gjrm(f.list, data = df4, margins = marg, copula = copula_type, model = "B")
+        
+        # Convergence check
+        conv_output <- capture.output(conv.check(models2[[model_name]]))
+        if (grepl("Observed information matrix is positive definite", conv_output[3])) {
+          converage <- c(converage, "Yes")
+        } else {
+          converage <- c(converage, "No")  # Keep results but mark as non-converging
+        }
+        
+        # Compute AT results
+        at_result <- ATE(models2[[model_name]], "lymphovascular_invasion_present", n.sim = 2000)
+        formatted_result <- sprintf("%0.3f (%0.3f, %0.3f)", at_result$res[2], at_result$res[1], at_result$res[3])
+        at_value <- c(at_value, formatted_result)
+        
+        # Collect AIC, BIC, and tau values
+        AIC_values <- c(AIC_values, AIC(models2[[model_name]]))
+        BIC_values <- c(BIC_values, BIC(models2[[model_name]]))
+        
+       kkk <- k.tau(models2[[model_name]])   
+      tau_parts <- as.numeric(kkk)
+      tauv <- tau_parts[1]
+      low_tau <- tau_parts[2]
+      up_tau <- tau_parts[3]
+        tau_values <- c(tau_values, sprintf("%0.3f (%0.3f, %0.3f)", tauv, low_tau,  up_tau))
+        
+        
+
+      
+  
+      
+        
+      }, error = function(e) {
+        # Handle errors
+        warning("Error occurred in model: ", model_name, " - ", e$message)
+        converage <- c(converage, "Error")
+        at_value <- c(at_value, NA)
+        AIC_values <- c(AIC_values, NA)
+        BIC_values <- c(BIC_values, NA)
+        tau_values <- c(tau_values, NA)
+      })
+    }
+  }
+}
+#result_df I did not delete some variable. let's try remove some non-impotant variable from model 
+#results_df1 remove age from eq2 ; margin status from eq2
+#results_df2 remove clinical_T from eq2 ; margin status from eq2
+
+# Summarize results
+results_df3 <- data.frame(
+  Model = names(models2),
+  Convergence = converage,
+  AT_Value = at_value,
+  AIC = AIC_values,
+  BIC = BIC_values,
+  Tau = tau_values
+)
+
+# Print the results for inspection
+print(results_df3)
+
+
+
+
+
+
+```
+
+
+### 4 years
+```{r}
+# 2 years survival
+set.seed(1207)
+library(GJRM)
+
+
+# Calculate the right censoring ratio for two years
+time_cutoff <- 12*4 # 2 years in months
+
+df4$Surv.4_NA <- NA
+
+
+#OS 1: DEAD and 0:ALIVE
+df4$Surv.4_NA[df4$OS == 0 & df4$OS.time >= time_cutoff] <- 1#right censoring data
+df4$Surv.4_NA[df4$OS == 0 & df4$OS.time < time_cutoff] <- NA
+
+df4$Surv.4_NA[df4$OS == 1 & df4$OS.time > time_cutoff] <- 1
+df4$Surv.4_NA[df4$OS == 1 & df4$OS.time <= time_cutoff] <- 0
+
+
+
+treat.eq <-  as.factor(lymphovascular_invasion_present)~# equ 1
+  s(MIMAT0000264)+  #LVI small/RF
+ # s(MIMAT0000253) +#LVI small/RF
+  s(MIMAT0000460)+#LVI
+  s(age_at_initial_pathologic_diagnosis)+
+  as.factor(clinical_N)+
+  as.factor(margin_status)+
+  as.factor(perineural_invasion_present)
+ 
+
+
+
+out.eq <- Surv.4_NA ~ as.factor(lymphovascular_invasion_present)+ # equ2
+  s(MIMAT0000754)+
+  s(MIMAT0004601)+
+  s(MIMAT0000097)+  #LVI small/RF
+  s(MIMAT0004766)+  #LVI
+  s(age_at_initial_pathologic_diagnosis)
+
+ 
+
+ 
+
+copula_types <- c("N","F", "PL", "AMH", "FGM", "T", "HO", "C0", "C90", "C180", "C270",
+                  "GAL0", "GAL90", "GAL180", "GAL270", "J0", "J90", "J180", "J270", 
+                  "G0", "G90", "G180", "G270") # Include more copula types as needed 
+ 
+mr <- c("probit", "logit", "cloglog")
+
+f.list <- list(treat.eq, out.eq)
+
+
+# Initialize an empty list for storing model results
+models2 <- list()
+# Initialize vectors to store results
+converage <- at_value <- AIC_values <- BIC_values <- tau_values <- c()
+
+# Loop through copula types and margins
+for (copula_type in copula_types) {
+  for (i in 1:length(mr)) {
+    for (j in 1:length(mr)) {
+      
+      marg <- c(mr[i], mr[j])
+      
+      model_name <- paste0("TCGA-", substr(marg[1], 1, 1), substr(marg[2], 1, 1), copula_type)
+      
+      # Run the model with tryCatch to handle errors
+      tryCatch({
+        models2[[model_name]] <- gjrm(f.list, data = df4, margins = marg, copula = copula_type, model = "B")
+        
+        # Convergence check
+        conv_output <- capture.output(conv.check(models2[[model_name]]))
+        if (grepl("Observed information matrix is positive definite", conv_output[3])) {
+          converage <- c(converage, "Yes")
+        } else {
+          converage <- c(converage, "No")  # Keep results but mark as non-converging
+        }
+        
+        # Compute AT results
+        at_result <- ATE(models2[[model_name]], "lymphovascular_invasion_present", n.sim = 2000)
+        formatted_result <- sprintf("%0.3f (%0.3f, %0.3f)", at_result$res[2], at_result$res[1], at_result$res[3])
+        at_value <- c(at_value, formatted_result)
+        
+        # Collect AIC, BIC, and tau values
+        AIC_values <- c(AIC_values, AIC(models2[[model_name]]))
+        BIC_values <- c(BIC_values, BIC(models2[[model_name]]))
+        
+       kkk <- k.tau(models2[[model_name]])   
+      tau_parts <- as.numeric(kkk)
+      tauv <- tau_parts[1]
+      low_tau <- tau_parts[2]
+      up_tau <- tau_parts[3]
+        tau_values <- c(tau_values, sprintf("%0.3f (%0.3f, %0.3f)", tauv, low_tau,  up_tau))
+        
+        
+
+      
+  
+      
+        
+      }, error = function(e) {
+        # Handle errors
+        warning("Error occurred in model: ", model_name, " - ", e$message)
+        converage <- c(converage, "Error")
+        at_value <- c(at_value, NA)
+        AIC_values <- c(AIC_values, NA)
+        BIC_values <- c(BIC_values, NA)
+        tau_values <- c(tau_values, NA)
+      })
+    }
+  }
+}
+#result_df I did not delete some variable. let's try remove some non-impotant variable from model 
+#results_df1 remove age from eq2 ; margin status from eq2
+#results_df2 remove clinical_T from eq2 ; margin status from eq2
+
+# Summarize results
+results_df4 <- data.frame(
+  Model = names(models2),
+  Convergence = converage,
+  AT_Value = at_value,
+  AIC = AIC_values,
+  BIC = BIC_values,
+  Tau = tau_values
+)
+
+# Print the results for inspection
+print(results_df4)
+
+
+
+
+
+
+```
+
+
+### 5 years
+```{r}
+# 2 years survival
+set.seed(1207)
+library(GJRM)
+
+
+# Calculate the right censoring ratio for two years
+time_cutoff <- 12*5 # 2 years in months
+
+df4$Surv.5_NA <- NA
+
+
+#OS 1: DEAD and 0:ALIVE
+df4$Surv.5_NA[df4$OS == 0 & df4$OS.time >= time_cutoff] <- 1#right censoring data
+df4$Surv.5_NA[df4$OS == 0 & df4$OS.time < time_cutoff] <- NA
+
+df4$Surv.5_NA[df4$OS == 1 & df4$OS.time > time_cutoff] <- 1
+df4$Surv.5_NA[df4$OS == 1 & df4$OS.time <= time_cutoff] <- 0
+
+
+
+treat.eq <-  as.factor(lymphovascular_invasion_present)~# equ 1
+  s(MIMAT0000264)+  #LVI small/RF
+ # s(MIMAT0000253) +#LVI small/RF
+  s(MIMAT0000460)+#LVI
+  s(age_at_initial_pathologic_diagnosis)+
+  as.factor(clinical_N)+
+  as.factor(margin_status)+
+  as.factor(perineural_invasion_present)
+ 
+
+
+
+out.eq <- Surv.5_NA ~ as.factor(lymphovascular_invasion_present)+ # equ2
+  s(MIMAT0000754)+
+  s(MIMAT0004601)+
+  s(MIMAT0000097)+  #LVI small/RF
+  s(MIMAT0004766)+  #LVI
+  #s(MIMAT0004550)+
+  s(age_at_initial_pathologic_diagnosis)
+
+ 
+
+ 
+
+copula_types <- c("N","F", "PL", "AMH", "FGM", "T", "HO", "C0", "C90", "C180", "C270",
+                  "GAL0", "GAL90", "GAL180", "GAL270", "J0", "J90", "J180", "J270", 
+                  "G0", "G90", "G180", "G270") # Include more copula types as needed 
+ 
+mr <- c("probit", "logit", "cloglog")
+
+f.list <- list(treat.eq, out.eq)
+
+
+# Initialize an empty list for storing model results
+models2 <- list()
+# Initialize vectors to store results
+converage <- at_value <- AIC_values <- BIC_values <- tau_values <- c()
+
+# Loop through copula types and margins
+for (copula_type in copula_types) {
+  for (i in 1:length(mr)) {
+    for (j in 1:length(mr)) {
+      
+      marg <- c(mr[i], mr[j])
+      
+      model_name <- paste0("TCGA-", substr(marg[1], 1, 1), substr(marg[2], 1, 1), copula_type)
+      
+      # Run the model with tryCatch to handle errors
+      tryCatch({
+        models2[[model_name]] <- gjrm(f.list, data = df4, margins = marg, copula = copula_type, model = "B")
+        
+        # Convergence check
+        conv_output <- capture.output(conv.check(models2[[model_name]]))
+        if (grepl("Observed information matrix is positive definite", conv_output[3])) {
+          converage <- c(converage, "Yes")
+        } else {
+          converage <- c(converage, "No")  # Keep results but mark as non-converging
+        }
+        
+        # Compute AT results
+        at_result <- ATE(models2[[model_name]], "lymphovascular_invasion_present", n.sim = 2000)
+        formatted_result <- sprintf("%0.3f (%0.3f, %0.3f)", at_result$res[2], at_result$res[1], at_result$res[3])
+        at_value <- c(at_value, formatted_result)
+        
+        # Collect AIC, BIC, and tau values
+        AIC_values <- c(AIC_values, AIC(models2[[model_name]]))
+        BIC_values <- c(BIC_values, BIC(models2[[model_name]]))
+        
+       kkk <- k.tau(models2[[model_name]])   
+      tau_parts <- as.numeric(kkk)
+      tauv <- tau_parts[1]
+      low_tau <- tau_parts[2]
+      up_tau <- tau_parts[3]
+        tau_values <- c(tau_values, sprintf("%0.3f (%0.3f, %0.3f)", tauv, low_tau,  up_tau))
+        
+        
+
+      
+  
+      
+        
+      }, error = function(e) {
+        # Handle errors
+        warning("Error occurred in model: ", model_name, " - ", e$message)
+        converage <- c(converage, "Error")
+        at_value <- c(at_value, NA)
+        AIC_values <- c(AIC_values, NA)
+        BIC_values <- c(BIC_values, NA)
+        tau_values <- c(tau_values, NA)
+      })
+    }
+  }
+}
+#result_df I did not delete some variable. let's try remove some non-impotant variable from model 
+#results_df1 remove age from eq2 ; margin status from eq2
+#results_df2 remove clinical_T from eq2 ; margin status from eq2
+
+# Summarize results
+results_df5 <- data.frame(
+  Model = names(models2),
+  Convergence = converage,
+  AT_Value = at_value,
+  AIC = AIC_values,
+  BIC = BIC_values,
+  Tau = tau_values
+)
+
+# Print the results for inspection
+print(results_df5)
+
+
+
+
+
+
+```
+
+## single 
+```{r}
+
+
+
+
+
+df5<-df4
+
+df5 <-  df4 %>%
+  dplyr::rename(
+    hsa_miR_203a_3p = MIMAT0000264,
+    hsa_miR_194_5p  = MIMAT0000460,
+    hsa_miR_337_3p  = MIMAT0000754,
+    hsa_miR_145_3p  = MIMAT0004601,
+    hsa_miR_99a_5p  = MIMAT0000097,
+    hsa_miR_146b_3p = MIMAT0004766,
+    age = age_at_initial_pathologic_diagnosis
+  )
+
+
+
+
+
+treat.eq <- as.factor(lymphovascular_invasion_present) ~ 
+  s(hsa_miR_203a_3p) +
+  s(hsa_miR_194_5p) +
+  s(age) +
+  as.factor(clinical_N) +
+  as.factor(margin_status) +
+  as.factor(perineural_invasion_present)
+
+out.eq <- Surv.2_NA ~ as.factor(lymphovascular_invasion_present) +
+  s(hsa_miR_337_3p) +
+  s(hsa_miR_145_3p) +
+  s(hsa_miR_99a_5p) +
+  s(hsa_miR_146b_3p) +
+  s(age)
+
+
+
+
+
+
+f.list <- list(treat.eq, out.eq)
+
+xr <- gjrm(f.list, data = df5, margins = c("probit", "probit"), copula = 'N', model = "B")
+
+summary(xr)
+
+
+p1<-plot(xr, eq = 1, select = 1, shade = TRUE)
+p2<-plot(xr, eq = 1, select = 2, shade = TRUE)
+p2<-plot(xr, eq = 1, select = 3, shade = TRUE)
+
+p3<-plot(xr, eq = 2, select = 1, shade = TRUE)
+p4<-plot(xr, eq = 2, select = 2, shade = TRUE)
+p5<-plot(xr, eq = 2, select = 3, shade = TRUE)
+p6<-plot(xr, eq = 2, select = 4, shade = TRUE)
+p7<-plot(xr, eq = 2, select = 5, shade = TRUE)
+
+
+max_row <- which.max(df6$hsa_miR_194_5p)
+
+
+df6 <- df6[-max_row, ]
+
+
+summary(df6$hsa_miR_194_5p)
+
+
+```
+
+```{r}
+
+library(dplyr)
+
+
+df7 <- df4 %>%
+  dplyr::rename(
+    hsa_miR_203a_3p = MIMAT0000264,
+    hsa_miR_194_5p  = MIMAT0000460,
+    hsa_miR_337_3p  = MIMAT0000754,
+    hsa_miR_145_3p  = MIMAT0004601,
+    hsa_miR_99a_5p  = MIMAT0000097,
+    hsa_miR_146b_3p = MIMAT0004766,
+    age = age_at_initial_pathologic_diagnosis
+  ) %>%
+  mutate(
+    across(
+      .cols = c(hsa_miR_337_3p,hsa_miR_145_3p, hsa_miR_194_5p, hsa_miR_203a_3p, hsa_miR_99a_5p,hsa_miR_146b_3p),
+      .fns = ~ {
+        q_low  <- quantile(., 0.05, na.rm = TRUE)  
+        q_high <- quantile(., 0.95, na.rm = TRUE)   
+        pmin(pmax(., q_low), q_high)
+      }
+    )
+  )
+
+
+
+
+
+
+treat.eq <- as.factor(lymphovascular_invasion_present) ~ 
+  s(hsa_miR_203a_3p) +
+  s(hsa_miR_194_5p) +
+  s(age) +
+  as.factor(clinical_N) +
+  as.factor(margin_status) +
+  as.factor(perineural_invasion_present)
+
+out.eq <- Surv.2_NA ~ as.factor(lymphovascular_invasion_present) +
+  s(hsa_miR_337_3p) +
+  s(hsa_miR_145_3p) +
+  s(hsa_miR_99a_5p) +
+  s(hsa_miR_146b_3p) +
+  s(age)
+
+
+f.list <- list(treat.eq, out.eq)
+
+xr <- gjrm(f.list, data = df7, margins = c("probit", "logit"), copula = 'J0', model = "B")
+
+summary(xr)
+
+
+
+
+
+p1<-plot(xr, eq = 1, select = 1, shade = TRUE,
+         xlab = "hsa-miR-203a-3p", ylab = "s(hsa-miR-203a-3p,1.9)", main = "")
+p2<-plot(xr, eq = 1, select = 2, shade = TRUE,
+         xlab = "hsa-miR-194-5p", ylab = "s(hsa-miR-194-5p,2.16)", main = "")
+#Winsorized at 99th percentile
+p2<-plot(xr, eq = 1, select = 3, shade = TRUE,
+         xlab = "age", ylab = "s(age,1)", main = "")
+
+p3<-plot(xr, eq = 2, select = 1, shade = TRUE,
+         xlab = "hsa-miR-337-3p", ylab = "s(hsa-miR-337-3p,1)", main = "")
+p4<-plot(xr, eq = 2, select = 2, shade = TRUE,
+         xlab = "hsa-miR-145-3p", ylab = "s(hsa-miR-145-3p,6.25)", main = "")
+p5<-plot(xr, eq = 2, select = 3, shade = TRUE,
+         xlab = "hsa-miR-99a-5p", ylab = "s(hsa-miR-99a-5p,1)", main = "")
+p6<-plot(xr, eq = 2, select = 4, shade = TRUE,
+         xlab = "hsa-miR-146b-3p", ylab = "s(hsa-miR-146b-3p,1)", main = "")
+p7<-plot(xr, eq = 2, select = 5, shade = TRUE,
+         xlab = "age", ylab = "s(age,1)", main = "")
+
+
+
+
+p1<-plot(xr, eq = 1, select = 1, shade = TRUE)
+p2<-plot(xr, eq = 1, select = 2, shade = TRUE)
+#Winsorized at 99th percentile
+p2<-plot(xr, eq = 1, select = 3, shade = TRUE)
+
+p3<-plot(xr, eq = 2, select = 1, shade = TRUE)
+p4<-plot(xr, eq = 2, select = 2, shade = TRUE)
+p5<-plot(xr, eq = 2, select = 3, shade = TRUE)
+p6<-plot(xr, eq = 2, select = 4, shade = TRUE)
+p7<-plot(xr, eq = 2, select = 5, shade = TRUE)
+```
+
+
+##### Normal_final_layout_with_labels.png
+```{r}
+
+# 
+png("Normal_final_layout_with_panel.png", width = 3000, height = 3500, res = 300)
+
+# 
+layout_matrix <- matrix(c(
+  1, 1, 1,
+  2, 3, 4,
+  5, 5, 5,
+  6, 7, 8,
+  9, 10, 11
+), nrow = 5, byrow = TRUE)
+
+
+
+layout(layout_matrix, heights = c(0.15, 1, 0.15, 1, 1),
+       widths = c(1, 1, 1))
+
+
+# ---------
+par(mar=c(0,0,0,0))  # 
+plot.new()
+text(0.5, 0.5, "Panel A: Treatment Equation", cex = 2, font = 2)
+
+# ---------
+par(mar = c(5, 5, 4, 2))  
+#plot(xr, eq = 1, select = 1, shade = TRUE)
+#plot(xr, eq = 1, select = 2, shade = TRUE)
+#plot(xr, eq = 1, select = 3, shade = TRUE)
+
+
+plot(xr, eq = 1, select = 1, shade = TRUE,
+         xlab = "hsa-miR-203a-3p", ylab = "s(hsa-miR-203a-3p,1.9)", main = "")
+plot(xr, eq = 1, select = 2, shade = TRUE,
+         xlab = "hsa-miR-194-5p", ylab = "s(hsa-miR-194-5p,2.16)", main = "")
+#Winsorized at 99th percentile
+plot(xr, eq = 1, select = 3, shade = TRUE,
+         xlab = "age", ylab = "s(age,1)", main = "")
+
+# --------- 
+par(mar=c(0,0,0,0))
+plot.new()
+text(0.5, 0.5, "Panel B: Outcome Equation", cex = 2, font = 2)
+
+# --------- 
+par(mar = c(5, 5, 4, 2))
+
+
+plot(xr, eq = 2, select = 1, shade = TRUE,
+         xlab = "hsa-miR-337-3p", ylab = "s(hsa-miR-337-3p,1)", main = "")
+plot(xr, eq = 2, select = 2, shade = TRUE,
+         xlab = "hsa-miR-145-3p", ylab = "s(hsa-miR-145-3p,6.25)", main = "")
+plot(xr, eq = 2, select = 3, shade = TRUE,
+         xlab = "hsa-miR-99a-5p", ylab = "s(hsa-miR-99a-5p,1)", main = "")
+
+# --------- 
+plot(xr, eq = 2, select = 4, shade = TRUE,
+         xlab = "hsa-miR-146b-3p", ylab = "s(hsa-miR-146b-3p,1)", main = "")
+plot(xr, eq = 2, select = 5, shade = TRUE,
+         xlab = "age", ylab = "s(age,1)", main = "")
+plot.new()
+
+
+dev.off()
+
+
+```
+
+```{r}
+# save hi-res
+png("JOE0_final_layout_with_panel.png", width = 3500, height = 3500, res = 300)
+
+# ---- layout (unchanged) ----
+layout_matrix <- matrix(c(
+  1, 1, 1,   # row 1: Panel A title
+  2, 3, 4,   # row 2: Treatment 3 plots
+  5, 5, 5,   # row 3: Panel B title
+  6, 7, 8,   # row 4: Outcome 1-3
+  9, 10, 11  # row 5: Outcome 4-5 + blank
+), nrow = 5, byrow = TRUE)
+
+layout(layout_matrix,
+       heights = c(0.15, 1, 0.15, 1, 1),
+       widths  = c(1, 1, 1))
+
+# ---- global text sizing ----
+cex_axis <- 1.2
+cex_lab  <- 1.4
+cex_tag  <- 2
+
+# bring labels a bit closer to axes: mgp = c(title-line, tick-label-line, tick-mark-line)
+par(mgp = c(2.2, 0.7, 0), tck = -0.015, xaxs = "r", yaxs = "r")
+
+# helper to draw a single xr plot with custom labels + subplot tag
+plot_with_labels <- function(eq, sel, xlab, ylab, tag = NULL,
+                             mar = c(6.2, 7.2, 0.8, 2.2)) {
+  # mar is in "lines" (bottom, left, top, right)
+  op <- par(mar = mar, cex.axis = cex_axis, cex.lab = cex_lab)
+  on.exit(par(op), add = TRUE)
+
+  plot(xr, eq = eq, select = sel, shade = TRUE, xlab = xlab, ylab = ylab, main = "")
+
+  if (!is.null(tag)) {
+    u <- par("usr")
+    text(x = u[1] + 0.07*(u[2]-u[1]),
+         y = u[4] - 0.05*(u[4]-u[3]),
+         labels = tag, font = 2, cex = cex_tag, xpd = NA)
+  }
+}
+
+# optional: wrap long labels at commas or spaces to reduce left margin needs
+wrap_label <- function(s, width = 26) {
+  if (nchar(s) <= width) return(s)
+  # prefer breaking at ", " if present, else at last space before width
+  if (grepl(", ", s)) {
+    return(gsub(", ", ",\n", s))
+  } else {
+    # soft wrap near width
+    i <- max(gregexpr(" ", substr(s, 1, min(nchar(s), width)))[[1]])
+    if (i > 0 && i < nchar(s)) {
+      return(paste0(substr(s, 1, i-1), "\n", substr(s, i+1, nchar(s))))
+    } else {
+      return(s)
+    }
+  }
+}
+
+# -------------------------------------------------
+# row 1: Panel A title
+par(mar = c(0,0,0,0))
+plot.new()
+text(0.5, 0.5, "Panel A: Treatment Equation", cex = 2, font = 2)
+
+# row 2: Treatment (3 plots) — define your custom labels here
+plot_with_labels(eq = 1, sel = 1,
+                 xlab = "hsa-miR-203a-3p",
+                 ylab = wrap_label("s(hsa-miR-203a-3p, 1.88)"),
+                 tag  = "(a)")
+plot_with_labels(eq = 1, sel = 2,
+                 xlab = "hsa-miR-194-5p",
+                 ylab = wrap_label("s(hsa-miR-194-5p, 2.17)"),
+                 tag  = "(b)")
+plot_with_labels(eq = 1, sel = 3,
+                 xlab = "Age (years)",
+                 ylab = "s(age, 1)",
+                 tag  = "(c)")
+
+# row 3: Panel B title
+par(mar = c(0,0,0,0))
+plot.new()
+text(0.5, 0.5, "Panel B: Outcome Equation", cex = 2, font = 2)
+
+# row 4: Outcome (1–3)
+plot_with_labels(eq = 2, sel = 1,
+                 xlab = "hsa-miR-337-3p",
+                 ylab = "s(hsa-miR-337-3p, 1)",
+                 tag  = "(d)")
+plot_with_labels(eq = 2, sel = 2,
+                 xlab = "hsa-miR-145-3p",
+                 ylab = wrap_label("s(hsa-miR-145-3p, 6.01)"),
+                 tag  = "(e)")
+plot_with_labels(eq = 2, sel = 3,
+                 xlab = "hsa-miR-99a-5p",
+                 ylab = "s(hsa-miR-99a-5p, 1)",
+                 tag  = "(f)")
+
+# row 5: Outcome (4–5) + blank
+plot_with_labels(eq = 2, sel = 4,
+                 xlab = "hsa-miR-146b-3p",
+                 ylab = "s(hsa-miR-146b-3p, 1)",
+                 tag  = "(g)")
+plot_with_labels(eq = 2, sel = 5,
+                 xlab = "Age (years)",
+                 ylab = "s(age, 1)",
+                 tag  = "(h)")
+par(mar = c(0,0,0,0)); plot.new()
+
+dev.off()
+
+```
+
+
+##### c180_final_layout_with_labels.png
+```{r}
+
+png("c180_final_layout_with_labels.png", width = 3000, height = 3500, res = 300)
+
+
+layout_matrix <- matrix(c(
+  1, 1, 1,  
+  2, 3, 4,  
+  5, 5, 5,  
+  6, 7, 8,  
+  9, 10, 11  
+), nrow = 5, byrow = TRUE)
+
+layout(layout_matrix, heights = c(0.15, 1, 0.15, 1, 1),
+       widths = c(1, 1, 1))
+
+
+layout(layout_matrix, heights = c(0.15, 1, 0.15, 1, 1),
+       widths = c(1, 1, 1))
+
+
+labels_list <- c("(a)", "(b)", "(c)", "(d)", "(e)", "(f)", "(g)", "(h)")
+
+
+# --------- 
+par(mar=c(0,0,0,0)) 
+plot.new()
+text(0.5, 0.5, "Panel A: Treatment Equation", cex = 2, font = 2)
+
+# --------- 
+par(mar = c(5, 5, 0.7, 2))
+
+for (i in 1:3) {
+  plot(xr, eq = 1, select = i, shade = TRUE, cex.axis = 1.5, cex.lab = 1.5)
+  
+  
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+# --------- 
+par(mar=c(0,0,0,0)) 
+plot.new()
+text(0.5, 0.5, "Panel B: Outcome Equation", cex = 2, font = 2)
+
+# --------- 
+par(mar = c(5, 5, 0.7, 2))
+
+for (i in 1:3) {
+  plot(xr, eq = 2, select = i, shade = TRUE,cex.axis = 1.5, cex.lab = 1.5)
+  
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+# --------- 
+for (i in 4:5) {
+  plot(xr, eq = 2, select = i, shade = TRUE, cex.axis = 1.5, cex.lab = 1.5)
+  
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+plot.new()  
+
+
+dev.off()
+
+```
+
+
+##### Joe_final_layout_with_labels.png
+```{r}
+
+png("c180_final_layout_with_labels.png", width = 3000, height = 3500, res = 300)
+
+
+layout_matrix <- matrix(c(
+  1, 1, 1,  
+  2, 3, 4,  
+  5, 5, 5,  
+  6, 7, 8,  
+  9, 10, 11  
+), nrow = 5, byrow = TRUE)
+
+layout(layout_matrix, heights = c(0.15, 1, 0.15, 1, 1),
+       widths = c(1, 1, 1))
+
+
+layout(layout_matrix, heights = c(0.15, 1, 0.15, 1, 1),
+       widths = c(1, 1, 1))
+
+
+labels_list <- c("(a)", "(b)", "(c)", "(d)", "(e)", "(f)", "(g)", "(h)")
+
+
+
+# --------- 
+par(mar=c(0,0,0,0)) 
+plot.new()
+text(0.5, 0.5, "Panel A: Treatment Equation", cex = 2, font = 2)
+
+# --------- 
+par(mar = c(5, 5, 0.7, 2))
+
+for (i in 1:3) {
+  plot(xr, eq = 1, select = i, shade = TRUE, cex.axis = 1.5, cex.lab = 1.5)
+  
+
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+# --------- 
+par(mar=c(0,0,0,0)) 
+plot.new()
+text(0.5, 0.5, "Panel B: Outcome Equation", cex = 2, font = 2)
+
+# --------- 
+par(mar = c(5, 5, 0.7, 2))
+
+for (i in 1:3) {
+  plot(xr, eq = 2, select = i, shade = TRUE,cex.axis = 1.5, cex.lab = 1.5)
+  
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+# ---------
+for (i in 4:5) {
+  plot(xr, eq = 2, select = i, shade = TRUE, cex.axis = 1.5, cex.lab = 1.5)
+  
+  u <- par("usr")
+  
+text(x = u[1] + 0.05*(u[2]-u[1]), 
+     y = u[4] - 0.05*(u[4]-u[3]), 
+     labels = labels_list[i], 
+     cex = 1.5, font = 2)
+
+}
+
+plot.new()  
+
+
+dev.off()
+
+```
+
+
+
+
+
+
+## tau value 0.5
+```{r}
+library(VineCopula)
+library(ggplot2)
+library(patchwork)
+
+
+set.seed(123)
+
+# Gaussian copula
+t1 <- BiCopTau2Par(1, tau = 0.5)
+u1 <- BiCopSim(1000, family = 1, par = t1)
+df1 <- data.frame(x = qnorm(u1[,1]), y = qnorm(u1[,2]))
+
+# Joe copula
+t2 <- BiCopTau2Par(6, tau = 0.5)
+u2 <- BiCopSim(1000, family = 6, par = t2)
+df2 <- data.frame(x = qnorm(u2[,1]), y = qnorm(u2[,2]))
+
+# Rotated Clayton copula
+t3 <- BiCopTau2Par(13, tau = 0.5)
+u3 <- BiCopSim(1000, family = 13, par = t3)
+df3 <- data.frame(x = qnorm(u3[,1]), y = qnorm(u3[,2]))
+
+# 
+make_plot <- function(data, title, label_letter) {
+  ggplot(data, aes(x = x, y = y)) +
+    geom_point(alpha = 0.3, color = "blue", size = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    labs(title = title,
+         x = expression(qnorm(u[1])),
+         y = expression(qnorm(u[2]))) +
+    theme_bw(base_size = 10) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    annotate("text", x = -Inf, y = Inf, label = label_letter, hjust = -0.5, vjust = 1.5, size = 6, fontface = "bold")
+    
+}
+
+
+p1 <- make_plot(df1, "Gaussian copula (τ = 0.5)", "a")
+p2 <- make_plot(df2, "Joe copula (τ = 0.5)", "b")
+p3 <- make_plot(df3, "Clayton 180 copula (τ = 0.5)", "c")
+
+
+final_plot <- (p1 | p2 | p3) +
+  plot_layout(guides = "collect")
+
+
+print(final_plot)
+
+
+ggsave("copula_three_panels_inside_tag.png", final_plot, width = 14, height = 5, dpi = 300)
+
+```
+
